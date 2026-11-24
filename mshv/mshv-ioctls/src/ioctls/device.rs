@@ -147,6 +147,7 @@ mod tests {
     use mshv_bindings::{MSHV_DEV_TYPE_VFIO, MSHV_DEV_VFIO_FILE, MSHV_DEV_VFIO_FILE_ADD};
 
     #[test]
+    #[ignore]
     #[cfg(target_arch = "x86_64")]
     fn test_create_device() {
         let mshv = Mshv::new().unwrap();

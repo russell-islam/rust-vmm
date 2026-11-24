@@ -6,6 +6,7 @@
 #[allow(
     clippy::too_many_arguments,
     clippy::missing_safety_doc,
+    clippy::undocumented_unsafe_blocks,
     clippy::useless_transmute,
     clippy::unnecessary_cast,
     clippy::non_canonical_clone_impl,

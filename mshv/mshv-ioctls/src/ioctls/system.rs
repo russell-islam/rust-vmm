@@ -124,6 +124,7 @@ impl Mshv {
                 hv_partition_property_code_HV_PARTITION_PROPERTY_PROCESSOR_FEATURES1,
             )
             .unwrap();
+        // SAFETY: Both union views contain only integer feature bitfields.
         unsafe {
             // pt_cpu_fbanks expects _disabled_ processor features (bit = 1 means disabled)
             // whereas host_proc_features are _enabled_ features (bit = 1 means enabled).

@@ -130,6 +130,7 @@ impl VcpuFd {
             Some(page) => page.0,
             None => return false,
         };
+        // SAFETY: The register page is mapped by create_vcpu and remains mapped for this vCPU.
         unsafe { (*vp_reg_page).isvalid != 0 }
     }
 
@@ -301,7 +302,7 @@ impl VcpuFd {
     pub fn set_regs(&self, regs: &StandardRegisters) -> Result<()> {
         let mut reg_assocs = Vec::with_capacity(38);
 
-        for i in 0..29 as usize {
+        for i in 0..29_usize {
             reg_assocs.push(hv_register_assoc {
                 name: hv_register_name_HV_ARM64_REGISTER_X0 + i as u32,
                 value: hv_register_value {
@@ -485,7 +486,7 @@ impl VcpuFd {
     #[cfg(target_arch = "aarch64")]
     pub fn get_regs(&self) -> Result<StandardRegisters> {
         let mut reg_assocs: Vec<hv_register_assoc> = Vec::with_capacity(38);
-        for i in 0..29 as usize {
+        for i in 0..29_usize {
             reg_assocs.push(hv_register_assoc {
                 name: hv_register_name_HV_ARM64_REGISTER_X0 + i as u32,
                 ..Default::default()
@@ -532,8 +533,8 @@ impl VcpuFd {
         let mut ret_regs = StandardRegisters::default();
         // SAFETY: access union fields
         unsafe {
-            for i in 0..31 as usize {
-                ret_regs.regs[i] = reg_assocs[i].value.reg64;
+            for (i, reg) in reg_assocs.iter().enumerate().take(31) {
+                ret_regs.regs[i] = reg.value.reg64;
             }
 
             ret_regs.sp = reg_assocs[31].value.reg64;
@@ -702,6 +703,7 @@ impl VcpuFd {
     #[cfg(not(target_arch = "aarch64"))]
     fn set_special_regs_vp_page(&self, sregs: &SpecialRegisters) -> Result<()> {
         let vp_reg_page = self.get_vp_reg_page().unwrap().0;
+        // SAFETY: The valid register page is mapped for this vCPU; segment fields contain integers.
         unsafe {
             (*vp_reg_page).__bindgen_anon_3.__bindgen_anon_1.cs = sregs.cs.into();
             (*vp_reg_page).__bindgen_anon_3.__bindgen_anon_1.ds = sregs.ds.into();
@@ -986,8 +988,10 @@ impl VcpuFd {
         // SAFETY: access union fields
         let fp_control_status: hv_x64_fp_control_status_register__bindgen_ty_1 =
             unsafe { reg_assocs[24].value.fp_control_status.__bindgen_anon_1 };
+        // SAFETY: get_reg returned the requested XMM control/status register.
         let xmm_control_status: hv_x64_xmm_control_status_register__bindgen_ty_1 =
             unsafe { reg_assocs[25].value.xmm_control_status.__bindgen_anon_1 };
+        // SAFETY: The FP and XMM control/status unions contain the requested register values.
         let mut ret_regs = unsafe {
             FloatingPointUnit {
                 fpr: [[0x0; 16usize]; 8usize],
@@ -1045,6 +1049,7 @@ impl VcpuFd {
 
         self.get_reg(&mut reg_assocs)?;
 
+        // SAFETY: get_reg returned the requested 64-bit debug register values.
         let ret_regs = unsafe {
             DebugRegisters {
                 dr0: reg_assocs[0].value.reg64,
@@ -1600,6 +1605,7 @@ impl VcpuFd {
                 xss,
             }]
         );
+        // SAFETY: The flags union is initialized and its bitfield view contains only integers.
         unsafe {
             input
                 .as_mut_struct_ref()
@@ -1749,8 +1755,7 @@ impl VcpuFd {
     /// Get the list of system/synthetic registers supported by MSHV.
     #[cfg(target_arch = "aarch64")]
     pub fn get_reg_list(&self) -> Result<MshvRegList> {
-        let mut reg_list = MshvRegList::default();
-        reg_list.reg_list = vec![
+        let reg_list = vec![
             hv_register_name_HV_ARM64_REGISTER_CNTVCT_EL0,
             hv_register_name_HV_ARM64_REGISTER_PAR_EL1,
             hv_register_name_HV_ARM64_REGISTER_SPSR_EL1,
@@ -1786,7 +1791,7 @@ impl VcpuFd {
             hv_register_name_HV_REGISTER_DELIVERABILITY_NOTIFICATIONS,
             hv_register_name_HV_REGISTER_INTERNAL_ACTIVITY_STATE,
         ];
-        Ok(reg_list)
+        Ok(MshvRegList { reg_list })
     }
 }
 
@@ -2031,6 +2036,7 @@ mod tests {
         ];
 
         let mem_size = 0x4000;
+        // SAFETY: Request an anonymous mapping without dereferencing any pointers.
         let load_addr = unsafe {
             libc::mmap(
                 std::ptr::null_mut(),
@@ -2051,6 +2057,7 @@ mod tests {
 
         vm.map_user_memory(mem_region).unwrap();
 
+        // SAFETY: load_addr is the writable mapping of mem_size bytes created above.
         unsafe {
             // Get a mutable slice of `mem_size` from `load_addr`.
             // This is safe because we mapped it before.
@@ -2065,6 +2072,7 @@ mod tests {
         };
         vcpu.get_reg(slice::from_mut(&mut cs_reg)).unwrap();
 
+        // SAFETY: get_reg populated the requested CS segment register.
         unsafe {
             assert_ne!({ cs_reg.value.segment.base }, 0);
             assert_ne!({ cs_reg.value.segment.selector }, 0);
@@ -2112,6 +2120,7 @@ mod tests {
                     if !done {
                         assert!(io_message.rax == b'4' as u64);
                         assert!(io_message.port_number == 0x3f8);
+                        // SAFETY: to_ioport_info validated the I/O message; access_info is integer bits.
                         unsafe {
                             assert!(io_message.access_info.__bindgen_anon_1.string_op() == 0);
                             assert!(io_message.access_info.__bindgen_anon_1.access_size() == 1);
@@ -2132,6 +2141,7 @@ mod tests {
                     } else {
                         assert!(io_message.rax == b'\0' as u64);
                         assert!(io_message.port_number == 0x3f8);
+                        // SAFETY: to_ioport_info validated the I/O message; access_info is integer bits.
                         unsafe {
                             assert!(io_message.access_info.__bindgen_anon_1.string_op() == 0);
                             assert!(io_message.access_info.__bindgen_anon_1.access_size() == 1);
@@ -2152,6 +2162,7 @@ mod tests {
         }
         assert!(done);
         vm.unmap_user_memory(mem_region).unwrap();
+        // SAFETY: The guest mapping was removed and these are the original mmap address and length.
         unsafe { libc::munmap(load_addr as *mut c_void, mem_size) };
     }
 
@@ -2181,6 +2192,7 @@ mod tests {
         ];
 
         let mem_size = 0x4000;
+        // SAFETY: Request an anonymous mapping without dereferencing any pointers.
         let load_addr = unsafe {
             libc::mmap(
                 std::ptr::null_mut(),
@@ -2199,6 +2211,7 @@ mod tests {
             ..Default::default()
         };
 
+        // SAFETY: The vCPU fd is valid and the offset selects its register page.
         let registers_addr = unsafe {
             libc::mmap(
                 std::ptr::null_mut(),
@@ -2217,6 +2230,7 @@ mod tests {
             );
         }
 
+        // SAFETY: The vCPU fd is valid and the offset selects its intercept message page.
         let hv_msg_addr = unsafe {
             libc::mmap(
                 std::ptr::null_mut(),
@@ -2241,6 +2255,7 @@ mod tests {
         let hv_msg_page: *mut hv_message = hv_msg_addr as *mut hv_message;
         let mut done = false;
 
+        // SAFETY: load_addr is the writable mapping of mem_size bytes created above.
         unsafe {
             // Get a mutable slice of `mem_size` from `load_addr`.
             // This is safe because we mapped it before.
@@ -2255,6 +2270,7 @@ mod tests {
         };
         vcpu.get_reg(slice::from_mut(&mut cs_reg)).unwrap();
 
+        // SAFETY: get_reg populated the requested CS segment register.
         unsafe {
             assert_ne!({ cs_reg.value.segment.base }, 0);
             assert_ne!({ cs_reg.value.segment.selector }, 0);
@@ -2288,6 +2304,7 @@ mod tests {
         ])
         .unwrap();
 
+        // SAFETY: reg_page points to the successfully mapped vCPU register page.
         unsafe {
             assert!((*reg_page).version == HV_VP_REGISTER_PAGE_VERSION_1 as u16);
             assert!((*reg_page).isvalid == 1);
@@ -2296,6 +2313,7 @@ mod tests {
 
         loop {
             vcpu.run().unwrap();
+            // SAFETY: hv_msg_page remains mapped and run has populated the intercept message.
             let msg_header = unsafe { (*hv_msg_page).header };
             match msg_header.message_type {
                 hv_message_type_HVMSG_X64_HALT => {
@@ -2303,8 +2321,10 @@ mod tests {
                     break;
                 }
                 hv_message_type_HVMSG_X64_IO_PORT_INTERCEPT => {
+                    // SAFETY: hv_msg_page points to the mapped message page populated by run.
                     let io_message = unsafe { (*hv_msg_page).to_ioport_info().unwrap() };
                     assert!(io_message.port_number == 0x3f8);
+                    // SAFETY: to_ioport_info validated the I/O message; access_info is integer bits.
                     unsafe {
                         assert!(io_message.access_info.__bindgen_anon_1.string_op() == 0);
                         assert!(io_message.access_info.__bindgen_anon_1.access_size() == 1);
@@ -2312,6 +2332,7 @@ mod tests {
                     if !done {
                         assert!(io_message.rax == b'4' as u64);
                         assert!(io_message.port_number == 0x3f8);
+                        // SAFETY: to_ioport_info validated the I/O message; access_info is integer bits.
                         unsafe {
                             assert!(io_message.access_info.__bindgen_anon_1.string_op() == 0);
                             assert!(io_message.access_info.__bindgen_anon_1.access_size() == 1);
@@ -2321,10 +2342,12 @@ mod tests {
                         );
                         done = true;
                         /* Advance rip */
+                        // SAFETY: reg_page is writable and the register union contains integer fields.
                         unsafe {
                             (*reg_page).__bindgen_anon_1.__bindgen_anon_1.rip =
                                 io_message.header.rip + 1;
                         }
+                        // SAFETY: reg_page remains mapped and writable.
                         unsafe {
                             (*reg_page).dirty = 1 << HV_X64_REGISTER_CLASS_IP;
                         }
@@ -2345,8 +2368,11 @@ mod tests {
         assert!(done);
 
         vm.unmap_user_memory(mem_region).unwrap();
+        // SAFETY: The guest mapping was removed and these are the original mmap address and length.
         unsafe { libc::munmap(load_addr as *mut c_void, mem_size) };
+        // SAFETY: No register page accesses occur after unmapping its original address and length.
         unsafe { libc::munmap(registers_addr as *mut c_void, 0x1000) };
+        // SAFETY: No message page accesses occur after unmapping its original address and length.
         unsafe { libc::munmap(hv_msg_addr as *mut c_void, 0x1000) };
     }
 
@@ -2464,6 +2490,7 @@ mod tests {
 
         vcpu.get_reg(&mut get_regs).unwrap();
 
+        // SAFETY: get_reg returned the requested 64-bit RIP and RFLAGS registers.
         unsafe {
             /* use returned regs */
             assert!(get_regs[0].value.reg64 == 0x1000);

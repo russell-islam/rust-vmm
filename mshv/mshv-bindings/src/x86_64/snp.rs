@@ -9,6 +9,7 @@
 #![allow(
     clippy::too_many_arguments,
     clippy::missing_safety_doc,
+    clippy::undocumented_unsafe_blocks,
     clippy::useless_transmute,
     clippy::unnecessary_cast,
     non_camel_case_types,
@@ -1149,23 +1150,28 @@ impl Default for svm_ghcb_base {
 }
 
 #[allow(unused_macros)]
+#[deny(clippy::undocumented_unsafe_blocks)]
 #[macro_export]
 macro_rules! set_svm_field_u64_ptr {
     ($this: ident, $name: ident, $value: expr) => {
         #[allow(clippy::macro_metavars_in_unsafe)]
+        // SAFETY: The caller must provide a valid, writable GHCB pointer.
         unsafe {
             (*$this).$name = $value
         };
         let qword_offset = std::mem::offset_of!(svm_ghcb_base, $name) / 8;
         let arr_idx = qword_offset / 64;
         let bit_index = qword_offset % 64;
+        // SAFETY: The caller's GHCB pointer is valid; copy the bitmap to avoid unaligned references.
         let mut bitmap = unsafe { (*$this).valid_bitmap };
         bitmap[arr_idx] |= (1 << bit_index);
+        // SAFETY: Write the bitmap back through the same valid, writable GHCB pointer.
         unsafe { (*$this).valid_bitmap = bitmap };
     };
 }
 
 #[cfg(test)]
+#[deny(clippy::undocumented_unsafe_blocks)]
 mod tests {
     use super::*;
 

@@ -12,7 +12,7 @@ use std::vec::Vec;
 /// hypercall on behalf of the VMM without interpreting the arguments or result
 /// or changing any state in the kernel.
 ///
-/// RepInput<T> wraps a buffer containing the input for a "rep"[1] hypercall.
+/// `RepInput<T>` wraps a buffer containing the input for a ["rep" hypercall][rep].
 /// Rep hypercalls have rep-eated data, i.e. a variable length array as part of
 /// the input structure e.g.:
 /// ```
@@ -24,23 +24,22 @@ use std::vec::Vec;
 /// }
 /// ```
 /// The struct cannot be used as-is because it can't store anything in the
-/// __IncompleteArrayField<T> field.
+/// `__IncompleteArrayField<T>` field.
 ///
-/// RepInput<T> abstracts a rep hypercall input by wrapping a Vec<T>, where T
-/// is the hv_input_* struct type. The buffer backing the Vec<T> has enough
-/// space to store both the hv_input_* struct (at index 0), and the rep data
+/// `RepInput<T>` abstracts a rep hypercall input by wrapping a `Vec<T>`, where `T`
+/// is the `hv_input_*` struct type. The buffer backing the `Vec<T>` has enough
+/// space to store both the `hv_input_*` struct (at index 0), and the rep data
 /// immediately following it.
 ///
 /// Note also that the length of the variable length array field is not stored in
 /// this struct. Rather, it is passed to the hypercall in the 'rep count' field
-/// of the hypercall args (mshv_root_hvcall.reps). RepInput<T> stores this count,
+/// of the hypercall args (`mshv_root_hvcall.reps`). `RepInput<T>` stores this count,
 /// along with the size of the entire input data.
 ///
-/// RepInput<T> is intended to be created with make_rep_input!() and used with
-/// make_rep_args!() below.
+/// `RepInput<T>` is intended to be created with `make_rep_input!()` and used with
+/// `make_rep_args!()` below.
 ///
-/// [1] HyperV TLFS describing the hypercall interface and rep hypercalls:
-///   https://learn.microsoft.com/en-us/virtualization/hyper-v-on-windows/tlfs/hypercall-interface
+/// [rep]: https://learn.microsoft.com/en-us/virtualization/hyper-v-on-windows/tlfs/hypercall-interface
 pub struct RepInput<T> {
     vec: Vec<T>,
     size: usize,
@@ -48,11 +47,11 @@ pub struct RepInput<T> {
 }
 
 impl<T: Default> RepInput<T> {
-    /// Create a RepInput<T> for a rep hypercall
+    /// Create a `RepInput<T>` for a rep hypercall
     ///
     /// # Arguments
     ///
-    /// * `vec` - Vec<T> from input_with_arr_field_as_vec(). T is hv_input_* struct
+    /// * `vec` - `Vec<T>` from `input_with_arr_field_as_vec()`. `T` is an `hv_input_*` struct
     /// * `size` - Size of the hypercall input, including the rep data
     /// * `rep_count` - number of reps
     pub fn new(vec: Vec<T>, size: usize, rep_count: usize) -> Self {
@@ -78,7 +77,7 @@ impl<T: Default> RepInput<T> {
     /// `entry_size`, plus one additional entry
     /// Populate the first element of the Vec with the T. The rest will hold
     /// elements of size `entry_size` (note the Vec cannot be used normally to
-    /// modify these since size_of::<T>() isn't necessarily the same as entry_size)
+    /// modify these since `size_of::<T>()` isn't necessarily the same as `entry_size`)
     pub fn input_with_arr_field_as_vec(t: T, entry_size: usize, count: usize) -> Vec<T> {
         let element_space = count * entry_size;
         let vec_size_bytes = size_of::<T>() + element_space;
@@ -91,7 +90,7 @@ impl<T: Default> RepInput<T> {
 }
 
 impl<U> __IncompleteArrayField<U> {
-    /// Utility for casting __IncompleteArrayField<T> as the interior type
+    /// Utility for casting `__IncompleteArrayField<T>` as the interior type
     pub fn as_entry_ptr_mut(ptr: *mut __IncompleteArrayField<U>) -> *mut U {
         ptr as *mut U
     }
@@ -103,10 +102,10 @@ impl<U> __IncompleteArrayField<U> {
     }
 }
 
-/// Assemble a RepInput<T> from a hypercall input struct and an array of rep data
+/// Assemble a `RepInput<T>` from a hypercall input struct and an array of rep data
 /// Arguments:
 ///     1. The hv_input_* struct with the input data
-///     2. Name of the __IncompleteArrayField<T> in the struct
+///     2. Name of the `__IncompleteArrayField<T>` in the struct
 ///     3. An array or slice containing the rep data
 #[macro_export]
 macro_rules! make_rep_input {
@@ -132,7 +131,7 @@ macro_rules! make_rep_input {
 /// Create a mshv_root_hvcall populated with rep hypercall parameters
 /// Arguments:
 ///     1. hypercall code
-///     2. RepInput<T> structure, where T is hv_input_*. See make_rep_input!()
+///     2. `RepInput<T>` structure, where `T` is `hv_input_*`. See `make_rep_input!()`
 ///     3. Slice of the correct type for output data (optional)
 #[macro_export]
 macro_rules! make_rep_args {

@@ -910,6 +910,7 @@ mod tests {
         let hv = Mshv::new().unwrap();
         let vm = hv.create_vm().unwrap();
         vm.initialize().unwrap();
+        // SAFETY: Request an anonymous mapping without dereferencing any pointers.
         let addr = unsafe {
             libc::mmap(
                 std::ptr::null_mut(),
@@ -952,6 +953,7 @@ mod tests {
         let vcpu = vm.create_vcpu(0).unwrap();
         let state = vcpu.get_lapic().unwrap();
         let buffer = Buffer::try_from(&state).unwrap();
+        // SAFETY: The conversion allocated and initialized an aligned interrupt controller buffer.
         let hv_state = unsafe { &*(buffer.buf as *const hv_local_interrupt_controller_state) };
         let cfg = InterruptRequest {
             interrupt_type: hv_interrupt_type_HV_X64_INTERRUPT_TYPE_EXTINT,
@@ -1138,6 +1140,7 @@ mod tests {
         let vm = hv.create_vm().unwrap();
         vm.initialize().unwrap();
         // Try to allocate 32 MB memory
+        // SAFETY: Request an anonymous mapping without dereferencing any pointers.
         let load_addr = unsafe {
             libc::mmap(
                 std::ptr::null_mut(),
@@ -1199,6 +1202,7 @@ mod tests {
 
         vm.disable_dirty_page_tracking().unwrap();
         vm.unmap_user_memory(mem_region).unwrap();
+        // SAFETY: The guest mapping was removed and these are the original mmap address and length.
         unsafe { libc::munmap(load_addr as *mut c_void, mem_size) };
     }
 

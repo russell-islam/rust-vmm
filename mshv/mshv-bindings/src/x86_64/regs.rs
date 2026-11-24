@@ -523,7 +523,7 @@ pub struct LapicState {
 
 impl Default for LapicState {
     fn default() -> Self {
-        unsafe { ::std::mem::zeroed() }
+        Self { regs: [0; 1024] }
     }
 }
 
@@ -536,7 +536,7 @@ pub struct XSave {
 
 impl Default for XSave {
     fn default() -> Self {
-        unsafe { ::std::mem::zeroed() }
+        Self { buffer: [0; 4096] }
     }
 }
 
@@ -758,7 +758,9 @@ pub struct AllVpStateComponents {
 
 impl Default for AllVpStateComponents {
     fn default() -> Self {
-        unsafe { ::std::mem::zeroed() }
+        Self {
+            buffer: [0; VP_STATE_COMPONENTS_BUFFER_SIZE],
+        }
     }
 }
 
@@ -958,6 +960,16 @@ pub fn get_partition_supported_msrs(features: &VpFeatures) -> Vec<u32> {
 mod tests {
     use super::*;
     use std::slice::from_raw_parts_mut;
+
+    #[test]
+    fn test_default_state_buffers_are_zeroed() {
+        assert_eq!(LapicState::default().regs, [0; 1024]);
+        assert_eq!(XSave::default().buffer, [0; 4096]);
+        assert_eq!(
+            AllVpStateComponents::default().buffer,
+            [0; VP_STATE_COMPONENTS_BUFFER_SIZE]
+        );
+    }
 
     #[test]
     fn test_all_vp_state_components_copy_to_buffer() {

@@ -17,6 +17,8 @@ impl hv_message {
             return Err(errno::Error::new(libc::EINVAL));
         }
 
+        // SAFETY: The message type above identifies a memory intercept payload; read_unaligned
+        // handles the packed message layout.
         let ret =
             unsafe { std::ptr::read_unaligned(std::ptr::addr_of!(self.u.payload) as *const _) };
         Ok(ret)
